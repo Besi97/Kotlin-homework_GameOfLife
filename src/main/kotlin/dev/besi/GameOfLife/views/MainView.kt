@@ -1,8 +1,6 @@
-package dev.besi.GameOfLife.view
+package dev.besi.GameOfLife.views
 
-import dev.besi.GameOfLife.LifeConfig
 import javafx.scene.layout.Priority
-import javafx.scene.paint.Color
 import javafx.stage.Screen
 import tornadofx.*
 

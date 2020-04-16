@@ -1,6 +1,6 @@
 package dev.besi.GameOfLife
 
-import dev.besi.GameOfLife.view.MainView
-import tornadofx.App
+import dev.besi.GameOfLife.views.MainView
+import tornadofx.*
 
 class GameOfLife: App(MainView::class)
