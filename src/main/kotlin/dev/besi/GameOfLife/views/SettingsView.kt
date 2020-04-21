@@ -4,12 +4,13 @@ import dev.besi.GameOfLife.LifeController
 import javafx.beans.property.SimpleBooleanProperty
 import javafx.beans.property.SimpleIntegerProperty
 import tornadofx.*
+import kotlin.math.abs
 
 class SettingsView : View("Settings View") {
 	private val lifeController: LifeController by inject()
 
-	private val xSizeProperty = SimpleIntegerProperty(lifeController.xSize)
-	private val ySizeProperty = SimpleIntegerProperty(lifeController.ySize)
+	private val xSizeProperty = SimpleIntegerProperty(lifeController.xSizeProperty.value)
+	private val ySizeProperty = SimpleIntegerProperty(lifeController.ySizeProperty.value)
 
 	private val sProperties = Array(9) {
 		i -> SimpleBooleanProperty(lifeController.s.contains(i))
@@ -35,8 +36,8 @@ class SettingsView : View("Settings View") {
 		}
 		button("Refresh") {
 			action {
-				lifeController.xSize = xSizeProperty.value
-				lifeController.ySize = ySizeProperty.value
+				lifeController.xSizeProperty.value = xSizeProperty.value
+				lifeController.ySizeProperty.value = ySizeProperty.value
 				lifeController.s = sProperties
 						.mapIndexed{ i, property -> if(property.value) i else -1 }
 						.filter { it >= 0 }
@@ -49,7 +50,11 @@ class SettingsView : View("Settings View") {
 		}
 		label("Game speed")
 		slider(0.25, 10, lifeController.gameSpeed) {
-			this.valueChangingProperty().onChange { lifeController.gameSpeed = this.value }
+			this.valueProperty().onChange {
+				if(abs(lifeController.gameSpeed - this.value) > 0.15){
+					lifeController.gameSpeed = this.value
+				}
+			}
 		}
 		togglebutton ("Start") {
 			isSelected = false

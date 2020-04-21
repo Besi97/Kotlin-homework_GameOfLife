@@ -1,244 +1,123 @@
 package dev.besi.GameOfLife.views
 
 import dev.besi.GameOfLife.LifeController
-import javafx.application.Platform
-import javafx.scene.layout.StackPane
-import javafx.scene.paint.Color
+import javafx.geometry.HPos
+import javafx.geometry.Pos
+import javafx.geometry.VPos
+import javafx.scene.layout.ColumnConstraints
+import javafx.scene.layout.GridPane
+import javafx.scene.layout.RowConstraints
+import javafx.scene.shape.Rectangle
 import tornadofx.*
-import kotlin.concurrent.fixedRateTimer
+import java.lang.Double.min
 
-//TODO optimize drawing
-class LifeView : View("Life View") {
+//TODO add recyclerview-like behaviour
+class LifeView: View("Life view") {
+	companion object {
+		private const val DEFAULT_GRID_SIZE = 16.0
+		const val VIEW_MARGIN_CLEARANCE = 100.0 //required for proper downsizing
+		var xMouseAnchor = 0.0
+		var yMouseAnchor = 0.0
+	}
+
 	private val lifeController: LifeController by inject()
 
-	companion object {
-		const val DEFAULT_GRID_SIZE = 16
-	}
-
-	private var timer = fixedRateTimer(null, false, 1000, 20) {
-		runLater { reDraw() }
-	}
-
-	private var zoom = 2.0
-		set(value) {
-			field = if(value > 5) 5.0 else value
-		}
-	/** X coord (on the map, not the view) of the cell in the center of the view*/
-	private var xCenter = 0.0
-		set(value) {
-			val minXCenter = (getViewWidth() / 2) / getGridSize()
-			val maxXCenter = lifeController.xSize - minXCenter
-
-			field = when {
-				value < minXCenter -> minXCenter
-				value > maxXCenter -> maxXCenter
-				else -> value
+	override val root = stackpane {
+		gridpane {
+			alignment = Pos.CENTER
+			this@stackpane.layoutBoundsProperty().addListener { observable, oldValue, newValue ->
+				this@stackpane.clip = Rectangle(newValue.minX, newValue.minY, newValue.width, newValue.height)
+				draw()
 			}
-		}
-	/** Y coord (on the map, not the view) of the cell in the center of the view */
-	private var yCenter = 0.0
-		set(value) {
-			val minYCenter = (getViewHeight() / 2) / getGridSize()
-			val maxYCenter = lifeController.ySize - minYCenter
-
-			field = when {
-				value < minYCenter -> minYCenter
-				value > maxYCenter -> maxYCenter
-				else -> value
+			this@stackpane.setOnScroll { event ->
+				scale(1 + event.deltaY / 150)
 			}
-		}
-
-	private var mouseXDragAnchor: Double = 0.0
-	private var mouseYDragAnchor: Double = 0.0
-
-	override val root: StackPane = stackpane {
-		this.setOnZoom { event -> onZoom(event.zoomFactor)}
-		this.setOnScroll { event -> onZoom(event.deltaY)}
-		this.setOnMousePressed { event -> if(event.isPrimaryButtonDown) {
-			mouseXDragAnchor = event.x
-			mouseYDragAnchor = event.y
-		} }
-		this.setOnMouseDragged { event -> if(event.isPrimaryButtonDown) {
-			xCenter += (mouseXDragAnchor - event.x) / getGridSize()
-			yCenter += (mouseYDragAnchor - event.y) / getGridSize()
-			mouseXDragAnchor = event.x
-			mouseYDragAnchor = event.y
-		} }
-		this.setOnMouseClicked { event -> if(event.isStillSincePress) {
-			lifeController.invertCell(
-					((event.x - (getMinXRender() + getViewWidth()/2)) / getGridSize() + xCenter).toInt(),
-					((event.y - (getMinYRender() + getViewHeight()/2)) / getGridSize() + yCenter).toInt()
-			)
-		} }
-	}
-
-	init {
-		xCenter = lifeController.xSize.toDouble() / 2
-		yCenter = lifeController.ySize.toDouble() / 2
-		primaryStage.setOnCloseRequest {
-			timer.cancel()
-			lifeController.stop()
-			Platform.exit()
+			this@stackpane.setOnMousePressed { event -> if(event.isPrimaryButtonDown) {
+				xMouseAnchor = event.x
+				yMouseAnchor = event.y
+			} }
+			this@stackpane.setOnMouseDragged { event -> if(event.isPrimaryButtonDown) {
+				translateX -= xMouseAnchor - event.x
+				translateY -= yMouseAnchor - event.y
+				xMouseAnchor = event.x
+				yMouseAnchor = event.y
+			} }
+			lifeController.xSizeProperty.onChange { draw() }
+			lifeController.ySizeProperty.onChange { draw() }
 		}
 	}
 
-	private fun reDraw() {
-		//revise center coordinates
-		xCenter = xCenter
-		yCenter = yCenter
+	private fun GridPane.scale(factor: Double) {
+		if(factor <= 0) return
 
-		root.clear()
-		drawMap()
-		drawBorder()
+		scaleX *= factor
+		scaleY *= factor
+		translateX *= factor
+		translateY *= factor
 	}
 
-	private fun onZoom(zoomFactor: Double) {
-		zoom *= (1 + zoomFactor/100)
-	}
-
-	/*
-	As a first step, it calculates the coordinates of the upper left corner of the center cell and draws it.
-	After that, it draws all other cells around that cell, from inside out.
-	 */
-	private fun drawMap() {
-		//get the coordinates of the center of the view
-		val xViewCenter = getViewWidth() / 2 + getMinXRender()
-		val yViewCenter = getViewHeight() / 2 +  getMinYRender()
-		//get the coords of the upper left corner of the first (central) cell
-		val xCenterCell = xViewCenter - ((xCenter - xCenter.toInt()) * getGridSize())
-		val yCenterCell = yViewCenter - ((yCenter - yCenter.toInt()) * getGridSize())
-		drawCell(xCenterCell, yCenterCell, lifeController.map[xCenter.toInt()][yCenter.toInt()])
-
-		var iterations = 1
-		var x = xCenterCell - getGridSize()
-		var y = yCenterCell - getGridSize()
-		do {
-			//draw the upper row
-			if(y <= getMinYRender() - getGridSize()){
-				//skip to the end of row, if we are out of bounds
-				//-getGridSize() to include partially seen cells
-				x += iterations*2*getGridSize()
-			}else for (i in 0 until iterations * 2) {
-				x += getGridSize()
-				drawCell(x, y,
-						lifeController.map
-								.getOrNull(xCenter.toInt() - iterations + i + 1)
-								?.getOrNull(yCenter.toInt() - iterations)
-								?: false)
+	private fun GridPane.draw() {
+		clear()
+		//println("default: $DEFAULT_GRID_SIZE\ngridSize: $gridSize\nfactor: ${DEFAULT_GRID_SIZE/(gridSize*scaleX)}")
+		scale(DEFAULT_GRID_SIZE / (getGridSize() * scaleX))
+		//println("scaleX: $scaleX\n")
+		lifeController.map.forEachIndexed { i, list ->
+			row {
+				list.forEachIndexed { j, property ->
+					val cell = Cell(property, getGridSize()) {
+						setOnMouseClicked { event ->
+							if(event.isStillSincePress) {
+								lifeController.map[i][j].value = !lifeController.map[i][j].value
+							}
+						}
+					}
+					add(cell.root, i, j)
+				}
 			}
+		}
+		setupGridConstraints()
+	}
 
-			//draw the right column
-			if(x >= getMaxXRender()){
-				//skip to the bottom if we are out of bounds
-				y += iterations*2*getGridSize()
-			}else for (i in 0 until iterations * 2) {
-				y += getGridSize()
-				if(yCenter.toInt() - iterations + i + 1 < lifeController.ySize)
-					drawCell(x, y,
-							lifeController.map
-									.getOrNull(xCenter.toInt() + iterations)
-									?.getOrNull(yCenter.toInt() - iterations + i + 1)
-									?: false)
+	private fun GridPane.setupGridConstraints() {
+		rowConstraints.clear()
+		val rowConstraint = RowConstraints(getGridSize())
+		rowConstraint.valignment = VPos.CENTER
+		for (i in 0 until lifeController.ySizeProperty.value) {
+			rowConstraints.add(rowConstraint)
+		}
+
+		columnConstraints.clear()
+		val columnConstraint = ColumnConstraints(getGridSize())
+		columnConstraint.halignment = HPos.CENTER
+		for (i in 0 until lifeController.xSizeProperty.value) {
+			columnConstraints.add(columnConstraint)
+		}
+	}
+
+	private fun getGridSize(): Double = min(
+			(root.width - VIEW_MARGIN_CLEARANCE) / lifeController.xSizeProperty.value,
+			(root.height - VIEW_MARGIN_CLEARANCE) / lifeController.ySizeProperty.value)
+/*
+		init {
+			root.add(group)
+			root.layoutBoundsProperty().addListener { observable, oldValue, newValue ->
+				draw()
+				root.clip = Rectangle(newValue.minX, newValue.minY, newValue.width, newValue.height)
 			}
-
-			//draw the lower row
-			if(y >= getMaxYRender()){
-				//skip to the start if we are out of bounds
-				x -= iterations*2*getGridSize()
-			}else for (i in 0 until iterations * 2) {
-				x -= getGridSize()
-				if(xCenter.toInt() + iterations - i - 1 >= 0)
-					drawCell(x, y,
-							lifeController.map
-									.getOrNull(xCenter.toInt() + iterations - i - 1)
-									?.getOrNull(yCenter.toInt() + iterations)
-									?: false)
+			root.setOnScroll { event ->
+				scale(1 + event.deltaY/200)
 			}
-
-			//draw the left column
-			if(x <= getMinXRender() - getGridSize()){
-				//skip to the top if we are out of bounds
-				//-getGridSize() to include partially seen cells
-				y -= iterations*2*getGridSize()
-			}else for (i in 0 until iterations * 2) {
-				y -= getGridSize()
-				if(yCenter.toInt() + iterations - i - 1 >= 0)
-					drawCell(x, y,
-							lifeController.map
-									.getOrNull(xCenter.toInt() - iterations)
-									?.getOrNull(yCenter.toInt() + iterations - i - 1)
-									?: false)
-			}
-
-			//set coordinates for the next iteration
-			iterations++
-			x = xCenterCell - iterations * getGridSize()
-			y = yCenterCell - iterations * getGridSize()
-			//break loop if both coords are clearly out of bounds
-			// - getGridSize() is added to include partially seen cells
-			// - 2*getGridSize() for x, without the 2 multiplier, the rightmost column may fail to draw on drag
-		}while (x > getMinXRender() - 2*getGridSize() || y > getMinYRender() - getGridSize())
-	}
-
-	private fun drawCell(x: Double, y: Double, isAlive: Boolean) {
-		if(!isCellVisible(x, y)) return
-
-	    root.add(root.rectangle {
-			val correctedX = if(x < getMinXRender()) getMinXRender() else x
-			val correctedY = if(y < getMinYRender()) getMinYRender() else y
-			val correctedWidth = if(correctedX + getGridSize() - (correctedX - x) > getMaxXRender())
-				getMaxXRender() - correctedX else getGridSize() - (correctedX - x)
-			val correctedHeight = if(correctedY + getGridSize() - (correctedY - y) > getMaxYRender())
-				getMaxYRender() - correctedY else getGridSize() - (correctedY - y)
-
-			this.x = correctedX
-			this.y = correctedY
-			width = correctedWidth
-			height = correctedHeight
-			fill = if(isAlive) Color.BLACK else null
-			stroke = if(zoom > 0.5) Color.LIGHTGRAY else null
-			isManaged = false
-		})
-	}
-
-	private fun isCellVisible(x: Double, y: Double): Boolean{
-		if(
-				x < getMinXRender()-getGridSize() ||
-				y < getMinYRender()-getGridSize() ||
-				x > getMaxXRender() ||
-				y > getMaxYRender())
-			return false
-		return true
-	}
-
-	private fun drawBorder() {
-		root.add(root.polygon(
-				0, 				0,
-				0, 				getViewHeight(),
-				getViewWidth(), getViewHeight(),
-				getViewWidth(), 0) {
-			stroke = Color.DIMGRAY
-			strokeWidth = 2.5
-			fill = null
-		})
-	}
-
-	private fun getGridSize(): Double = DEFAULT_GRID_SIZE * zoom
-
-	private fun getXGridCountDouble(): Double {
-		val maxXCount = root.width / getGridSize() - 1	// the -1 allows it to resize to smaller correctly
-		return if(maxXCount > lifeController.xSize) lifeController.xSize.toDouble() else maxXCount
-	}
-	private fun getYGridCountDouble(): Double {
-		val maxYCount = root.height / getGridSize() - 1	// the -1 allows it to resize to smaller correctly
-		return if(maxYCount > lifeController.ySize) lifeController.ySize.toDouble() else maxYCount
-	}
-
-	private fun getViewWidth(): Double = getXGridCountDouble() * getGridSize()
-	private fun getViewHeight(): Double = getYGridCountDouble() * getGridSize()
-
-	private fun getMinXRender(): Double = (root.width - getViewWidth()) / 2
-	private fun getMinYRender(): Double = (root.height - getViewHeight()) / 2
-	private fun getMaxXRender(): Double = root.width - getMinXRender()
-	private fun getMaxYRender(): Double = root.height - getMinYRender()
+			root.setOnMousePressed { event -> if(event.isPrimaryButtonDown) {
+				xMouseAnchor = event.x
+				yMouseAnchor = event.y
+			} }
+			root.setOnMouseDragged { event -> if(event.isPrimaryButtonDown) {
+				group.apply {
+					translateX -= xMouseAnchor - event.x
+					translateY -= yMouseAnchor - event.y
+				}
+				xMouseAnchor = event.x
+				yMouseAnchor = event.y
+			} }
+		}*/
 }
