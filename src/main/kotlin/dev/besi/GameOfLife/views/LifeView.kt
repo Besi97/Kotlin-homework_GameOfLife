@@ -3,18 +3,13 @@ package dev.besi.GameOfLife.views
 import dev.besi.GameOfLife.LifeController
 import javafx.event.EventTarget
 import javafx.geometry.Bounds
-import javafx.geometry.HPos
 import javafx.geometry.Pos
-import javafx.geometry.VPos
 import javafx.scene.control.ScrollPane
-import javafx.scene.layout.ColumnConstraints
-import javafx.scene.layout.RowConstraints
 import tornadofx.*
 
 class LifeView : View("Life view") {
 	companion object {
 		private const val DEFAULT_GRID_SIZE = 16.0
-		const val VIEW_MARGIN_CLEARANCE = 100.0 //required for proper downsizing
 	}
 
 	private val lifeController: LifeController by inject()
@@ -27,6 +22,7 @@ class LifeView : View("Life view") {
 			minHeightProperty().bind(this@scrollpane.heightProperty())
 			recycleGridPane {
 				alignment = Pos.CENTER
+				//border = Border(BorderStroke(Color.RED, BorderStrokeStyle.SOLID, CornerRadii(0.0), BorderWidths(2.0)))
 				this@scrollpane.layoutBoundsProperty().addListener { observable, oldValue, newValue ->
 					this@stackpane.prefWidth = newValue.width
 					this@stackpane.prefHeight = newValue.height
@@ -69,18 +65,10 @@ class LifeView : View("Life view") {
 
 	private fun RecycleGridPane.init(bounds: Bounds) {
 		clear()
-		setupGridConstraints()
+		gridSize = getGridSize()
+		rowCount = lifeController.ySizeProperty.value
+		columnCount = lifeController.xSizeProperty.value
 		draw(bounds)
-	}
-
-	private fun RecycleGridPane.setupGridConstraints() {
-		val rowConstraint = RowConstraints(getGridSize())
-		rowConstraint.valignment = VPos.CENTER
-		setupRows(lifeController.ySizeProperty.value, rowConstraint)
-
-		val columnConstraint = ColumnConstraints(getGridSize())
-		columnConstraint.halignment = HPos.CENTER
-		setupColumns(lifeController.xSizeProperty.value, columnConstraint)
 	}
 
 	private fun getGridSize(): Double = DEFAULT_GRID_SIZE

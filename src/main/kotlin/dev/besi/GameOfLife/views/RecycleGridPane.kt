@@ -1,18 +1,26 @@
 package dev.besi.GameOfLife.views
 
 import javafx.geometry.Bounds
-import javafx.scene.layout.ColumnConstraints
-import javafx.scene.layout.GridPane
-import javafx.scene.layout.RowConstraints
+import javafx.scene.Node
+import javafx.scene.layout.Pane
+import tornadofx.*
 import kotlin.math.absoluteValue
-import kotlin.system.measureTimeMillis
 
-class RecycleGridPane : GridPane() {
+class RecycleGridPane : Pane() {
 
 	var getCell: (x: Int, y: Int) -> Cell? = { x, y -> null }
 
+	var gridSize = 16.0
+	var columnCount = 0
+	var rowCount = 0
+
 	private var xMouseAnchor = 0.0
 	private var yMouseAnchor = 0.0
+
+	private var xCenterPixel = 0.0
+	private var yCenterPixel = 0.0
+	private var xCenterCell = 0
+	private var yCenterCell = 0
 
 	private var xStartTheoretical: Int = 0
 	private var xEndTheoretical: Int = 0
@@ -27,34 +35,40 @@ class RecycleGridPane : GridPane() {
 	private var xRecentTranslate = 0.0
 		set(value) {
 			field = value
-			val prefWidth = columnConstraints[0].prefWidth
-			if (field.absoluteValue >= prefWidth) {
-				translateCells((field / prefWidth).toInt(), 0)
-				field %= prefWidth
+			if (field.absoluteValue >= gridSize) {
+				translateCells((field / gridSize).toInt(), 0)
+				field %= gridSize
 			}
 		}
 	private var yRecentTranslate = 0.0
 		set(value) {
 			field = value
-			val prefHeight = rowConstraints[0].prefHeight
-			if (field.absoluteValue >= prefHeight) {
-				translateCells(0, (field / prefHeight).toInt())
-				field %= prefHeight
+			if (field.absoluteValue >= gridSize) {
+				translateCells(0, (field / gridSize).toInt())
+				field %= gridSize
 			}
 		}
 
 	private val cells = mutableListOf<CellHolder>()
 
+	private fun add(node: Node, x: Int, y: Int) {
+		node.layoutX = (x - xCenterCell) * gridSize + xCenterPixel
+		node.layoutY = (y - yCenterCell) * gridSize + yCenterPixel
+		add(node)
+	}
+
 	fun draw(bounds: Bounds) {
 		cells.clear()
-		val xOriginalCenterCellIndex = columnConstraints.size / 2
-		val yOriginalCenterCellIndex = rowConstraints.size / 2
-		val translateXCell = translateX / columnConstraints[0].prefWidth
-		val translateYCell = translateY / rowConstraints[0].prefHeight
-		val xCurrentCenterCellIndex = xOriginalCenterCellIndex - translateXCell
-		val yCurrentCenterCellIndex = yOriginalCenterCellIndex - translateYCell
-		val cellsToLeftFromCenter = bounds.width / 2 / (columnConstraints[0].prefWidth * scaleX)
-		val cellsToTopFromCenter = bounds.height / 2 / (rowConstraints[0].prefHeight * scaleY)
+		xCenterCell = columnCount / 2
+		yCenterCell = rowCount / 2
+		val translateXCell = translateX / gridSize
+		val translateYCell = translateY / gridSize
+		val xCurrentCenterCellIndex = xCenterCell - translateXCell
+		val yCurrentCenterCellIndex = yCenterCell - translateYCell
+		xCenterPixel = bounds.width / 2
+		yCenterPixel = bounds.height / 2
+		val cellsToLeftFromCenter = xCenterPixel / (gridSize * scaleX)
+		val cellsToTopFromCenter = yCenterPixel / (gridSize * scaleY)
 
 		//+2 cells "clearance", to always see cells on the edge of the pane as well
 		xStartTheoretical = (xCurrentCenterCellIndex - cellsToLeftFromCenter - 2).toInt()
@@ -63,9 +77,9 @@ class RecycleGridPane : GridPane() {
 		yEndTheoretical = (yCurrentCenterCellIndex + cellsToTopFromCenter + 2).toInt()
 
 		xStartIndex = xStartTheoretical.coerceAtLeast(0)
-		xEndIndex = xEndTheoretical.coerceAtMost(columnConstraints.size)
+		xEndIndex = xEndTheoretical.coerceAtMost(columnCount)
 		yStartIndex = yStartTheoretical.coerceAtLeast(0)
-		yEndIndex = yEndTheoretical.coerceAtMost(rowConstraints.size)
+		yEndIndex = yEndTheoretical.coerceAtMost(rowCount)
 
 		for (i in xStartIndex until xEndIndex + 1) {
 			for (j in yStartIndex until yEndIndex + 1) {
@@ -83,10 +97,7 @@ class RecycleGridPane : GridPane() {
 		xEndTheoretical -= x
 		yStartTheoretical -= y
 		yEndTheoretical -= y
-		val time = measureTimeMillis {
-			updateGrid()
-		}
-		println("gridupdate: $time ms")
+		updateGrid()
 	}
 
 	private fun updateGrid() {
@@ -108,8 +119,8 @@ class RecycleGridPane : GridPane() {
 				} ?: CellHolder(cell, x, y).also { holder ->
 					cells.add(holder)
 				}
-				add(cell.root, x, y)
 				holder.isBound = true
+				add(cell.root, x, y)
 			}
 		}
 
@@ -202,20 +213,6 @@ class RecycleGridPane : GridPane() {
 		scaleY *= factor
 		translateX *= factor
 		translateY *= factor
-	}
-
-	fun setupRows(count: Int, constraints: RowConstraints) {
-		rowConstraints.clear()
-		for (i in 0 until count) {
-			rowConstraints.add(constraints)
-		}
-	}
-
-	fun setupColumns(count: Int, constraints: ColumnConstraints) {
-		columnConstraints.clear()
-		for (i in 0 until count) {
-			columnConstraints.add(constraints)
-		}
 	}
 
 	class CellHolder(
