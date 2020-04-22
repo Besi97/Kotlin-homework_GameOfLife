@@ -10,8 +10,8 @@ import kotlin.concurrent.fixedRateTimer
 class LifeController: Controller() {
 	var b: IntArray = intArrayOf(3)
 	var s: IntArray = intArrayOf(2, 3)
-	var xSizeProperty = SimpleIntegerProperty(5)
-	var ySizeProperty = SimpleIntegerProperty(5)
+	var xSizeProperty = SimpleIntegerProperty(150)
+	var ySizeProperty = SimpleIntegerProperty(150)
 	var gameSpeed = 1.0
 		set(value) {
 			field = value
@@ -44,7 +44,6 @@ class LifeController: Controller() {
 		map.forEachIndexed { i, list ->
 			list.forEachIndexed { j, property ->
 				property.value = oldMap.getOrNull(xOffset + i)?.getOrNull(yOffset + j)?.value ?: false
-				println("(${xOffset + i}, ${yOffset + j}): ${property.value}")
 			}
 		}
 	}

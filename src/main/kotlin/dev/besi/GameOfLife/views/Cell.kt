@@ -6,7 +6,7 @@ import javafx.scene.paint.Color
 import tornadofx.*
 
 class Cell(
-		val isAliveProperty: BooleanProperty,
+		private val isAliveProperty: BooleanProperty,
 		private val size: Double,
 		op: Group.() -> Unit = {}
 ): View("Cell instance") {
