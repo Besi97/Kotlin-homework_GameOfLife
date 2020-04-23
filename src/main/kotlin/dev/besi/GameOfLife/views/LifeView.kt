@@ -28,9 +28,9 @@ class LifeView : View("Life view") {
 					this@stackpane.prefHeight = newValue.height
 					init(newValue)
 				}
-				/*this@stackpane.setOnScroll { event ->
+				this@stackpane.setOnScroll { event ->
 					scale(1 + event.deltaY / 150)
-				}*/
+				}
 				this@stackpane.setOnMousePressed { event ->
 					if (event.isPrimaryButtonDown) {
 						setMouseAnchor(event.x, event.y)

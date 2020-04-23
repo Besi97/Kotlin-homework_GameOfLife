@@ -4,7 +4,6 @@ import javafx.geometry.Bounds
 import javafx.scene.Node
 import javafx.scene.layout.Pane
 import tornadofx.*
-import kotlin.math.absoluteValue
 
 class RecycleGridPane : Pane() {
 
@@ -32,23 +31,6 @@ class RecycleGridPane : Pane() {
 	private var yStartIndex: Int = 0
 	private var yEndIndex: Int = 0
 
-	private var xRecentTranslate = 0.0
-		set(value) {
-			field = value
-			if (field.absoluteValue >= gridSize) {
-				translateCells((field / gridSize).toInt(), 0)
-				field %= gridSize
-			}
-		}
-	private var yRecentTranslate = 0.0
-		set(value) {
-			field = value
-			if (field.absoluteValue >= gridSize) {
-				translateCells(0, (field / gridSize).toInt())
-				field %= gridSize
-			}
-		}
-
 	private val cells = mutableListOf<CellHolder>()
 
 	private fun add(node: Node, x: Int, y: Int) {
@@ -61,12 +43,31 @@ class RecycleGridPane : Pane() {
 		cells.clear()
 		xCenterCell = columnCount / 2
 		yCenterCell = rowCount / 2
-		val translateXCell = translateX / gridSize
-		val translateYCell = translateY / gridSize
-		val xCurrentCenterCellIndex = xCenterCell - translateXCell
-		val yCurrentCenterCellIndex = yCenterCell - translateYCell
 		xCenterPixel = bounds.width / 2
 		yCenterPixel = bounds.height / 2
+		calculateTheoreticalBonds()
+
+		xStartIndex = xStartTheoretical.coerceAtLeast(0)
+		xEndIndex = xEndTheoretical.coerceAtMost(columnCount)
+		yStartIndex = yStartTheoretical.coerceAtLeast(0)
+		yEndIndex = yEndTheoretical.coerceAtMost(rowCount)
+
+		for (i in xStartIndex..xEndIndex) {
+			for (j in yStartIndex..yEndIndex) {
+				getCell(i, j)?.let {
+					val holder = CellHolder(it, i, j)
+					add(it.root, i, j)
+					cells.add(holder)
+				}
+			}
+		}
+	}
+
+	private fun calculateTheoreticalBonds() {
+		val translateXCell = (translateX / scaleX) / gridSize
+		val translateYCell = (translateY / scaleY) / gridSize
+		val xCurrentCenterCellIndex = xCenterCell - translateXCell
+		val yCurrentCenterCellIndex = yCenterCell - translateYCell
 		val cellsToLeftFromCenter = xCenterPixel / (gridSize * scaleX)
 		val cellsToTopFromCenter = yCenterPixel / (gridSize * scaleY)
 
@@ -75,130 +76,96 @@ class RecycleGridPane : Pane() {
 		xEndTheoretical = (xCurrentCenterCellIndex + cellsToLeftFromCenter + 2).toInt()
 		yStartTheoretical = (yCurrentCenterCellIndex - cellsToTopFromCenter - 2).toInt()
 		yEndTheoretical = (yCurrentCenterCellIndex + cellsToTopFromCenter + 2).toInt()
+	}
 
-		xStartIndex = xStartTheoretical.coerceAtLeast(0)
-		xEndIndex = xEndTheoretical.coerceAtMost(columnCount)
-		yStartIndex = yStartTheoretical.coerceAtLeast(0)
-		yEndIndex = yEndTheoretical.coerceAtMost(rowCount)
-
-		for (i in xStartIndex until xEndIndex + 1) {
-			for (j in yStartIndex until yEndIndex + 1) {
-				getCell(i, j)?.let {
-					val holder = CellHolder(it, i, j) { isBound = true }
-					add(it.root, i, j)
-					cells.add(holder)
-				}
+	private fun addCell(x: Int, y: Int) {
+		getCell(x, y)?.let { cell ->
+			CellHolder(cell, x, y).also { holder ->
+				cells.add(holder)
 			}
+			add(cell.root, x, y)
 		}
 	}
 
-	private fun translateCells(x: Int, y: Int) {
-		xStartTheoretical -= x
-		xEndTheoretical -= x
-		yStartTheoretical -= y
-		yEndTheoretical -= y
-		updateGrid()
+	private fun removeCells(predicate: (CellHolder) -> Boolean) {
+		cells.filter { predicate(it) }.forEach {
+			children.remove(it.cell.root)
+			cells.remove(it)
+		}
+
 	}
 
 	private fun updateGrid() {
-		val x = xStartIndex - xStartTheoretical
-		val y = yStartIndex - yStartTheoretical
-		fun removeCells(predicate: (CellHolder) -> Boolean) {
-			cells.filter { predicate(it) }.forEach {
-				it.isBound = false
-				children.remove(it.cell.root)
+		println(cells.size)
+		val xStart = xStartIndex - xStartTheoretical
+		val xEnd = xEndTheoretical - xEndIndex
+		val yStart = yStartIndex - yStartTheoretical
+		val yEnd = yEndTheoretical - yEndIndex
+		if ((xStart == 0) and (xEnd == 0) and (yStart == 0) and (yEnd == 0)) return
+
+		if (xStart > 0) {
+			for (i in 0 until xStart) {
+				for (j in yStartIndex..yEndIndex) {
+					addCell(xStartIndex, j)
+				}
+				xStartIndex--
+			}
+		} else {
+			for (i in 0 until -xStart) {
+				removeCells { it.x == xStartIndex }
+				xStartIndex++
 			}
 		}
 
-		fun addCell(x: Int, y: Int) {
-			getCell(x, y)?.let { cell ->
-				val holder = cells.firstOrNull { !it.isBound }?.also { holder ->
-					holder.cell = cell
-					holder.x = x
-					holder.y = y
-				} ?: CellHolder(cell, x, y).also { holder ->
-					cells.add(holder)
+		if (xEnd > 0) {
+			for (i in 0 until xEnd) {
+				for (j in yStartIndex..yEndIndex) {
+					addCell(xEndIndex, j)
 				}
-				holder.isBound = true
-				add(cell.root, x, y)
+				xEndIndex++
+			}
+		} else {
+			for (i in 0 until -xEnd) {
+				removeCells { it.x == xEndIndex }
+				xEndIndex--
 			}
 		}
 
-		if (x != 0) {
-			if (x > 0) {
-				if (xEndTheoretical <= xEndIndex) {
-					for (i in 0 until x) {
-						removeCells { it.x == xEndIndex }
-						xEndIndex--
-					}
+		if (yStart > 0) {
+			for (i in 0 until yStart) {
+				for (j in xStartIndex..xEndIndex) {
+					addCell(j, yStartIndex)
 				}
-				if (xStartTheoretical <= xStartIndex) {
-					for (i in 0 until x) {
-						for (j in yStartIndex until yEndIndex + 1) {
-							addCell(xStartIndex, j)
-						}
-						xStartIndex--
-					}
-				}
-			} else {
-				if (xStartTheoretical >= xStartIndex) {
-					for (i in 0 until -x) {
-						removeCells { it.x == xStartIndex }
-						xStartIndex++
-					}
-				}
-				if (xEndTheoretical >= xEndIndex) {
-					for (i in 0 until -x) {
-						for (j in yStartIndex until yEndIndex + 1) {
-							addCell(xEndIndex, j)
-						}
-						xEndIndex++
-					}
-				}
+				yStartIndex--
+			}
+		} else {
+			for (i in 0 until -yStart) {
+				removeCells { it.y == yStartIndex }
+				yStartIndex++
 			}
 		}
-		if (y != 0) {
-			if (y > 0) {
-				if (yEndTheoretical <= yEndIndex) {
-					for (i in 0 until y) {
-						removeCells { it.y == yEndIndex }
-						yEndIndex--
-					}
+
+		if (yEnd > 0) {
+			for (i in 0 until yEnd) {
+				for (j in xStartIndex..xEndIndex) {
+					addCell(j, yEndIndex)
 				}
-				if (yStartTheoretical <= yStartIndex) {
-					for (j in 0 until y) {
-						for (i in xStartIndex until xEndIndex + 1) {
-							addCell(i, yStartIndex)
-						}
-						yStartIndex--
-					}
-				}
-			} else {
-				if (yStartTheoretical >= yStartIndex) {
-					for (i in 0 until -y) {
-						removeCells { it.y == yStartIndex }
-						yStartIndex++
-					}
-				}
-				if (yEndTheoretical >= yEndIndex) {
-					for (j in 0 until -y) {
-						for (i in xStartIndex until xEndIndex + 1) {
-							addCell(i, yEndIndex)
-						}
-						yEndIndex++
-					}
-				}
+				yEndIndex++
+			}
+		} else {
+			for (i in 0 until -yEnd) {
+				removeCells { it.y == yEndIndex }
+				yEndIndex--
 			}
 		}
 	}
 
 	fun translate(xNew: Double, yNew: Double) {
-		val xDiff = xNew - xMouseAnchor
-		val yDiff = yNew - yMouseAnchor
-		translateX += xDiff
-		translateY += yDiff
-		xRecentTranslate += xDiff
-		yRecentTranslate += yDiff
+		translateX += xNew - xMouseAnchor
+		translateY += yNew - yMouseAnchor
+
+		calculateTheoreticalBonds()
+		updateGrid()
 	}
 
 	fun setMouseAnchor(x: Double, y: Double) {
@@ -213,20 +180,16 @@ class RecycleGridPane : Pane() {
 		scaleY *= factor
 		translateX *= factor
 		translateY *= factor
+
+		calculateTheoreticalBonds()
+		updateGrid()
 	}
 
 	class CellHolder(
 			var cell: Cell,
 			var x: Int,
-			var y: Int,
-			op: CellHolder.() -> Unit = {}
-	) {
-		var isBound = false
-
-		init {
-			op()
-		}
-	}
+			var y: Int
+	)
 
 }
 
