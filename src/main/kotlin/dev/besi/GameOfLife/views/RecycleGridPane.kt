@@ -96,7 +96,6 @@ class RecycleGridPane : Pane() {
 	}
 
 	private fun updateGrid() {
-		println(cells.size)
 		val xStart = xStartIndex - xStartTheoretical
 		val xEnd = xEndTheoretical - xEndIndex
 		val yStart = yStartIndex - yStartTheoretical

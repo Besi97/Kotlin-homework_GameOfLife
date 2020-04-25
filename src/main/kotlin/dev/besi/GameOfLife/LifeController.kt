@@ -47,29 +47,35 @@ class LifeController : Controller() {
 		}
 	}
 
-	private fun tick() {
-		val neighbors = Array(map.size) { IntArray(map[0].size) { 0 } }
+	fun tick() {
+		//val neighbors = Array(map.size) { IntArray(map[0].size) { 0 } }
+		val neighbors = mutableMapOf<Pair<Int, Int>, Int>()
 		map.forEachIndexed { x, booleans ->
 			booleans.forEachIndexed { y, bool ->
 				if (bool.value) {
 					for (i in -1 until 2) {
 						for (j in -1 until 2) {
-							if ((i == 0) and (j == 0)) continue
-							if ((x + i < 0) or (y + j < 0) or (x + i >= neighbors.size) or (y + j >= neighbors[0].size)) continue
-							neighbors[x + i][y + j]++
+							if ((i == 0) and (j == 0))
+								neighbors.merge(Pair(x, y), 0) { oldValue, value -> oldValue }
+							else
+								neighbors.merge(Pair(x + i, y + j), 1) { oldValue, value -> oldValue + value }
 						}
 					}
 				}
 			}
 		}
-		map.forEachIndexed { i, booleans ->
-			booleans.forEachIndexed { j, bool ->
-				bool.value = when {
-					bool.value and s.contains(neighbors[i][j]) -> true
-					!bool.value and b.contains(neighbors[i][j]) -> true
-					else -> false
-				}
+		neighbors.map { entry ->
+			val x = entry.key.first
+			val y = entry.key.second
+			if ((x < 0) or (y < 0) or (x >= map.size) or (y >= map[0].size)) return@map
+
+			val bool = map[x][y]
+			bool.value = when {
+				bool.value and s.contains(entry.value) -> true
+				!bool.value and b.contains(entry.value) -> true
+				else -> false
 			}
+			//println("(${entry.key.first}, ${entry.key.second}): ${entry.value}")
 		}
 	}
 
