@@ -88,4 +88,13 @@ class LifeController : Controller() {
 		lifeTimer = null
 	}
 
+	fun clear() {
+		stop()
+		map.forEach { array ->
+			array.forEach { property ->
+				property.value = false
+			}
+		}
+	}
+
 }

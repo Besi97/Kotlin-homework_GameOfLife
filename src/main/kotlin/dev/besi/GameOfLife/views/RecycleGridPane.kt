@@ -5,6 +5,10 @@ import javafx.scene.Node
 import javafx.scene.layout.Pane
 import tornadofx.*
 
+/**
+ * This view is based on RecyclerView in Android. The aim here is to only have those cells loaded, which are displayed
+ * (and some more, for smooth experience)
+ */
 class RecycleGridPane : Pane() {
 
 	var getCell: (x: Int, y: Int) -> Cell? = { x, y -> null }

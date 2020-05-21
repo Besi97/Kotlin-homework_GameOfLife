@@ -3,6 +3,9 @@ package dev.besi.GameOfLife
 import org.junit.Test
 import kotlin.system.measureTimeMillis
 
+/**
+ * Simple test for performance testing of the controller.
+ */
 class LifeControllerTest {
 	@Test
 	fun tickSpeedTest() {
